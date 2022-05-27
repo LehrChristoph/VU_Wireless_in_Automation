@@ -1,0 +1,33 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Copyright (c) 2020 Libre Solar Technologies GmbH
+ */
+
+/ {
+	zephyr,user {
+		/* adjust channel number according to pinmux in board.dts */
+		io-channels = <&adc 1>;
+	};
+
+	aliases {
+		pir0 = &pir0;
+	};
+
+	sensors {
+		compatible = "gpio-keys";
+		pir0: pir_0 {
+			gpios = < &gpio1 0x1 GPIO_ACTIVE_HIGH >;
+			label = "PIR Sensor 0";
+		};
+	};
+};
+
+&i2c0 {
+	compatible = "nordic,nrf-twi";
+	bme680@76 {
+		compatible = "bosch,bme680";
+		reg = <0x76>;
+		label = "BME680";
+	};
+};
