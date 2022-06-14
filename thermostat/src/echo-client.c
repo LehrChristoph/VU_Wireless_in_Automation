@@ -102,12 +102,11 @@ int send_sensor_values(void)
 	int ret;
 
 	wait();
-	
+	/*	
 	int lux_value = get_lux_value(0);
 	int pir_value = get_pir_value(0);
 	bme680_sensor_data_t sensor_data;
 	bme680_get_sensor_data(&sensor_data);
-
 	if (lux_value > 0) {
 		wait();
 		// TODO adjust to your packet structure/serializing logic
@@ -128,10 +127,13 @@ int send_sensor_values(void)
 	//if (IS_ENABLED(CONFIG_NET_UDP)) {
 	//	wait();
 	//	ret = process_udp();
+	*/
+	sprintf((char*)&packet_buffer, "Hello World\n");
+	ret = process_udp();
 		if (ret < 0) {
 			return ret;
 		}
-	}
+	//}
 
 	return 0;
 }
