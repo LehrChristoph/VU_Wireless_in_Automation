@@ -18,7 +18,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_echo_client_sample, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(thermostat, LOG_LEVEL_INF);
 
 #include <zephyr/zephyr.h>
 #include <errno.h>
@@ -66,38 +66,6 @@ K_SEM_DEFINE(run_app, 0, 1);
 
 static struct net_mgmt_event_callback mgmt_cb;
 
-static void wait(void)
-{
-	/* Wait for event on any socket used. Once event occurs,
-	 * we'll check them all.
-	 */
-	if (poll(&fd, 1, -1) < 0) {
-		LOG_ERR("Error in poll:%d", errno);
-	}
-}
-
-static int start_udp_and_tcp(void)
-{
-	int ret;
-
-	LOG_INF("Starting...");
-
-	if (IS_ENABLED(CONFIG_NET_UDP)) {
-		ret = start_coap();
-		if (ret < 0) {
-			return ret;
-		}
-	}
-
-	if (conf.ipv6.coap.sock >= 0) {
-		fd.fd = conf.ipv6.coap.sock;
-		fd.events = POLLIN;
-	}
-
-	return 0;
-}
-
-
 static bool join_coap_multicast_group(void)
 {
 	static struct in6_addr my_addr = MY_IP6ADDR;
@@ -141,56 +109,6 @@ static bool join_coap_multicast_group(void)
 	net_if_ipv6_maddr_join(if_mcast_addr);
 	
 	return true;
-}
-
-int send_sensor_values(void)
-{
-	int ret;
-
-	//wait();
-	/*	
-	int lux_value = get_lux_value(0);
-	int pir_value = get_pir_value(0);
-	bme680_sensor_data_t sensor_data;
-	bme680_get_sensor_data(&sensor_data);
-	if (lux_value > 0) {
-		wait();
-		// TODO adjust to your packet structure/serializing logic
-		//memcpy(packet_buffer, &lux_value, sizeof(lux_value)); 
-		//buffer_len = sizeof(lux_value) - 1;
-		sprintf((char*)&packet_buffer, "lux:%i;pir:%i;T:%d.%.2i;P:%d.%.2i;H:%d.%.2i;G:%d.%.2i\n",
-				lux_value, pir_value,
-				sensor_data.temp.val1, sensor_data.temp.val2, 
-				sensor_data.press.val1, sensor_data.press.val2,
-				sensor_data.humidity.val1, sensor_data.humidity.val2, 
-				sensor_data.gas_res.val1, sensor_data.gas_res.val2);
-		//buffer_len = strlen((char*)&packet_buffer);
-		NET_INFO("Sending: %s\n", packet_buffer);
-		//LOG_DBG("Set %d bytes, value %d", sizeof(lux_value), * (int *) &packet_buffer[0]);
-		ret = process_udp();
-	//}
-	//
-	//if (IS_ENABLED(CONFIG_NET_UDP)) {
-	//	wait();
-	//	ret = process_udp();
-	*/
-	sprintf((char*)&packet_buffer, "Hello World\n");
-	ret = process_coap();
-		if (ret < 0) {
-			return ret;
-		}
-	//}
-
-	return 0;
-}
-
-static void stop_udp_and_tcp(void)
-{
-	LOG_INF("Stopping...");
-
-	if (IS_ENABLED(CONFIG_NET_UDP)) {
-		stop_coap();
-	}
 }
 
 static void event_handler(struct net_mgmt_event_callback *cb,
@@ -244,37 +162,37 @@ static void init_app(void)
 	}
 }
 
+
 static int start_client(void)
 {
 	int iterations = 1;
 	int i = 0;
 	int ret;
 
-	while (iterations == 0 || i < iterations) {
-		/* Wait for the connection. */
-		k_sem_take(&run_app, K_FOREVER);
+	/* Wait for the connection. */
+	k_sem_take(&run_app, K_FOREVER);
 
-		ret = start_udp_and_tcp();
-		/*
-		if(ret == 0)
-		{
-			do
-			{
-				ret =	pir_init();
+	LOG_INF("Starting...");
 
-				k_sleep(K_MSEC(1000));
-			} while (ret != 0);
-		
-		}
-		*/
+	ret = start_coap();
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = coap_find_server();
+	if (ret == 0) {
+
+		ret = coap_register_observers();
 
 		while (connected && (ret == 0)) {
-			ret = send_sensor_values();
-			k_sleep(K_MSEC(5000));
+			ret = coap_process();
 		}
-
-		stop_udp_and_tcp();
+	
 	}
+
+	LOG_INF("Stopping...");
+
+	stop_coap();
 
 	return ret;
 }
@@ -293,16 +211,17 @@ void main(void)
 
 	join_coap_multicast_group();
 
+	hvac_init(24.0, 28.0, 25.0, 27.0, 75.0, 100);
 
-	k_thread_priority_set(k_current_get(), THREAD_PRIORITY);
+	//k_thread_priority_set(k_current_get(), THREAD_PRIORITY);
 
 #if defined(CONFIG_USERSPACE)
 	k_thread_access_grant(k_current_get(), &run_app);
 	k_mem_domain_add_thread(&app_domain, k_current_get());
-
 	k_thread_user_mode_enter((k_thread_entry_t)start_client, NULL, NULL,
 				 NULL);
 #else
+
 	exit(start_client());
 #endif
 }

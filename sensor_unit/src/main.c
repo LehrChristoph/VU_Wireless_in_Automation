@@ -8,7 +8,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(net_echo_server_sample, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(sensor_unit, LOG_LEVEL_INF);
 
 #include <zephyr/zephyr.h>
 #include <zephyr/linker/sections.h>
@@ -61,16 +61,6 @@ void quit(void)
 {
 	k_sem_give(&quit_lock);
 }
-
-
-/*
-static sensor_data_t gathered_sensor_data;
-
-void get_sensor_data(sensor_data_t *sensor_data)
-{
-	*sensor_data = gathered_sensor_data;
-}
-*/
 
 static void event_handler(struct net_mgmt_event_callback *cb,
 			  uint32_t mgmt_event, struct net_if *iface)

@@ -69,5 +69,13 @@ extern struct configs conf;
 int send_sensor_values(void);
 
 int start_coap(void);
-int process_coap(void);
+int coap_find_server(void);
+int coap_register_observers(void);
+int coap_process(void);
 void stop_coap(void);
+
+int hvac_init(double temp_min, double temp_max, double temp_min_presence, double temp_max_presence, double hum_max, int air_qual_max);
+void hvac_update_temperatur(double temp);
+void hvac_update_humidity(double hum);
+void hvac_update_air_quality(int air_qual);
+void hvac_update_pressence(int presence);

@@ -13,7 +13,7 @@
 #define STACK_SIZE 2048
 
 #define MAX_COAP_MSG_LEN 256
-#define MAX_RETRANSMIT_COUNT 2
+#define MAX_RETRANSMIT_COUNT 4
 
 #define THREAD_PRIORITY K_PRIO_PREEMPT(8)
 
@@ -25,6 +25,14 @@
 #define MY_IP6ADDR \
 	{ { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x1 } } }
 
+#define COAP_RESOURCE_ECHO 1
+#define COAP_RESOURCE_TEMPERATURE 2
+#define COAP_RESOURCE_HUMIDITY 3
+#define COAP_RESOURCE_AIR_QUALITY 4
+#define COAP_RESOURCE_AIR_PRESSURE 5
+#define COAP_RESOURCE_PRESSENCE 6
+#define COAP_RESOURCE_LUMINANCE 7
+#define LAST_ID_RESOURCE_ID COAP_RESOURCE_LUMINANCE
 
 #if defined(CONFIG_USERSPACE)
 #include <zephyr/app_memory/app_memdomain.h>
@@ -61,10 +69,11 @@ typedef struct
 	struct sensor_value temp;
 	struct sensor_value press;
 	struct sensor_value humidity;
-	struct sensor_value gas_res;
+	int air_quality_index;
 } sensor_data_t;
 
 void start_coap(void);
+void coap_resource_update(int resource_id);
 void stop_coap(void);
 
 void get_sensor_data(sensor_data_t *sensor_data);

@@ -6,8 +6,8 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(thermostat)
 
 target_sources(app PRIVATE src/thermostat.c)
+target_sources(app PRIVATE src/hvac.c)
 target_sources(app PRIVATE src/coap.c)
-
 include(${ZEPHYR_BASE}/samples/net/common/common.cmake)
 
 set(gen_dir ${ZEPHYR_BINARY_DIR}/include/generated/)

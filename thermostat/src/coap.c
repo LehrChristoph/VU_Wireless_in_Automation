@@ -8,12 +8,13 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_DECLARE(net_echo_client_sample, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(coap, LOG_LEVEL_INF);
 
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/zephyr.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <zephyr/net/socket.h>
 #include <zephyr/net/net_mgmt.h>
@@ -25,11 +26,11 @@ LOG_MODULE_DECLARE(net_echo_client_sample, LOG_LEVEL_DBG);
 #include <zephyr/random/rand32.h>
 
 #include "common.h"
-#include "net_private.h"
+#include "net_private.h"y
 
-#define RECV_BUF_SIZE 1280
 #define UDP_SLEEP K_MSEC(150)
 #define UDP_WAIT K_SECONDS(10)
+#define NUM_REPLIES 10
 
 static const char * const echo_path[] = { "echo", NULL };
 static const char * const temperature_path[] = {"sensors", "temperature", NULL };
@@ -39,7 +40,10 @@ static const char * const air_pressure_path[] = {"sensors",  "air_pressure", NUL
 static const char * const presence_path[] = {"sensors",  "presence", NULL };
 static const char * const luminance_path[] = {"sensors",  "luminance", NULL };
 
-static APP_BMEM char recv_buf[RECV_BUF_SIZE];
+static bool echo_received;
+static struct coap_reply replies[NUM_REPLIES];
+static int reply_acks[NUM_REPLIES];
+static int reply_acks_wr_ptr;
 
 static void wait_reply(struct k_work *work)
 {
@@ -53,7 +57,154 @@ static void wait_reply(struct k_work *work)
 	//send_udp_data(data);
 }
 
-static int process_coap_request(struct config *cfg)
+//----------------------------------------------------------------
+// Reply Callbacks
+//----------------------------------------------------------------
+
+static void send_obs_reply_ack(struct coap_packet *reply)
+{
+	struct coap_packet request;
+	uint8_t *data;
+	int r;
+
+	data = (uint8_t *)k_malloc(MAX_COAP_MSG_LEN);
+	if (!data) {
+		return;
+	}
+
+	r = coap_ack_init(&request, reply, data, MAX_COAP_MSG_LEN, COAP_CODE_EMPTY);
+	if (r < 0) {
+		LOG_ERR("Failed to init CoAP message");
+		goto end;
+	}
+
+	net_hexdump("ACK", request.data, request.offset);
+
+	static struct sockaddr_in6 mcast_addr = {
+						.sin6_family = AF_INET6,
+						.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
+						.sin6_port = htons(COAP_PORT) };
+
+	r = sendto(conf.ipv6.coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
+
+	if (r < 0) {
+		LOG_ERR("Failed to send CoAP ACK: %i", -r);
+	}
+end:
+	k_free(data);
+}
+
+static int echo_request_cb(const struct coap_packet *response,
+			       struct coap_reply *reply,
+			       const struct sockaddr *from)
+{
+	
+	echo_received = true;
+	coap_reply_clear(reply);
+
+	uint16_t id = coap_header_get_id(response);
+	uint8_t type = coap_header_get_type(response);
+	
+	return 0;
+}
+
+static int notification_cb_temp(const struct coap_packet *response,
+			       struct coap_reply *reply,
+			       const struct sockaddr *from)
+{
+	uint16_t id = coap_header_get_id(response);
+	uint8_t type = coap_header_get_type(response);
+	const uint8_t *payload;
+	uint16_t payload_len;
+
+	payload = coap_packet_get_payload(response, &payload_len);
+	if (payload == 0) {
+		LOG_ERR("NO PAYLOAD RECEIVED");
+	}
+	else
+	{
+		double result = atof(payload);
+		LOG_DBG("Tempereature %lf", result);
+		hvac_update_temperatur(result);
+	}
+
+	return 0;
+}
+
+static int notification_cb_humidity(const struct coap_packet *response,
+			       struct coap_reply *reply,
+			       const struct sockaddr *from)
+{
+	uint16_t id = coap_header_get_id(response);
+	uint8_t type = coap_header_get_type(response);
+	const uint8_t *payload;
+	uint16_t payload_len;
+
+	payload = coap_packet_get_payload(response, &payload_len);
+	if (payload == 0) {
+		LOG_ERR("NO PAYLOAD RECEIVED");
+	}
+	else
+	{
+		double result = atof(payload);
+		LOG_DBG("Humidity %lf", result);
+		hvac_update_humidity(result);
+	}
+
+	return 0;
+}
+
+static int notification_cb_air_quality(const struct coap_packet *response,
+			       struct coap_reply *reply,
+			       const struct sockaddr *from)
+{
+	uint16_t id = coap_header_get_id(response);
+	uint8_t type = coap_header_get_type(response);
+	const uint8_t *payload;
+	uint16_t payload_len;
+
+	payload = coap_packet_get_payload(response, &payload_len);
+	if (payload == 0) {
+		LOG_ERR("NO PAYLOAD RECEIVED");
+	}
+	else
+	{
+		double result = atof(payload);
+		LOG_DBG("Air Quality %lf", result);
+		hvac_update_air_quality(result);
+	}
+	
+	return 0;
+}
+
+static int notification_cb_presence(const struct coap_packet *response,
+			       struct coap_reply *reply,
+			       const struct sockaddr *from)
+{
+	uint16_t id = coap_header_get_id(response);
+	uint8_t type = coap_header_get_type(response);
+	const uint8_t *payload;
+	uint16_t payload_len;
+
+	payload = coap_packet_get_payload(response, &payload_len);
+	if (payload == 0) {
+		LOG_ERR("NO PAYLOAD RECEIVED");
+	}
+	else
+	{
+		int result = payload[0] == '0' ? 0 :1;
+		LOG_DBG("Presence %i", result);
+		hvac_update_pressence(result);
+	}
+	
+	return 0;
+}
+
+//----------------------------------------------------------------
+// CoAP Send and Receive Functions
+//----------------------------------------------------------------,
+
+static int coap_send_echo_request(struct config *cfg)
 {
 	uint8_t payload[] = "Hello World!\n";
 	struct coap_packet request;
@@ -69,13 +220,13 @@ static int process_coap_request(struct config *cfg)
 	r = coap_packet_init(&request, data, MAX_COAP_MSG_LEN,
 			     COAP_VERSION_1, COAP_TYPE_CON,
 			     COAP_TOKEN_MAX_LEN, coap_next_token(),
-			     COAP_METHOD_GET, coap_next_id());
+			     COAP_METHOD_PUT, coap_next_id());
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
 	}
 	else
 	{
-		for (p = temperature_path; p && *p; p++) {
+		for (p = echo_path; p && *p; p++) {
 			r = coap_packet_append_option(&request, COAP_OPTION_URI_PATH,
 							*p, strlen(*p));
 			if (r < 0) {
@@ -88,7 +239,6 @@ static int process_coap_request(struct config *cfg)
 		}
 		else
 		{
-				/*
 			r = coap_packet_append_payload_marker(&request);
 			if (r < 0) {
 				LOG_ERR("Unable to append payload marker");
@@ -101,9 +251,13 @@ static int process_coap_request(struct config *cfg)
 					LOG_ERR("Not able to append payload");
 				}
 				else
-				*/
 				{
 					net_hexdump("Request", request.data, request.offset);
+
+
+					struct coap_reply *reply =coap_reply_next_unused((struct coap_reply *)&replies, sizeof(replies));
+					coap_reply_init(reply, &request);
+					reply->reply = echo_request_cb;
 
 					static struct sockaddr_in6 mcast_addr = {
 						.sin6_family = AF_INET6,
@@ -112,10 +266,9 @@ static int process_coap_request(struct config *cfg)
 
 					r = sendto(cfg->coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
 				}
-			//}
+			}
 		}
 	}
-
 
 	k_free(data);
 
@@ -123,7 +276,7 @@ static int process_coap_request(struct config *cfg)
 }
 
 
-static int send_obs_coap_request(struct config *cfg, struct coap_reply *reply, void *user_data, const char * const path[])
+static int coap_send_observer_request(struct config *cfg, const char * const path[], coap_reply_t reply_cb)
 {
 	struct coap_packet request;
 	const char * const *p;
@@ -160,17 +313,24 @@ static int send_obs_coap_request(struct config *cfg, struct coap_reply *reply, v
 			}
 			if (r == 0) {
 			
-				net_hexdump("Request", request.data, request.offset);
+				if(reply_acks_wr_ptr < NUM_REPLIES)
+				{
+					net_hexdump("Request", request.data, request.offset);
 
-				reply->reply = obs_notification_cb;
-				reply->user_data = user_data;
+					struct coap_reply *reply =coap_reply_next_unused((struct coap_reply *)&replies, sizeof(replies));
+					coap_reply_init(reply, &request);
+					reply->reply = reply_cb;
+					reply_acks[reply_acks_wr_ptr] = -1;
+					reply->user_data = &reply_acks[reply_acks_wr_ptr];
+					reply_acks_wr_ptr++;
 
-				static struct sockaddr_in6 mcast_addr = {
-									.sin6_family = AF_INET6,
-									.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
-									.sin6_port = htons(COAP_PORT) };
+					static struct sockaddr_in6 mcast_addr = {
+										.sin6_family = AF_INET6,
+										.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
+										.sin6_port = htons(COAP_PORT) };
 
-				r = send(cfg->coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
+					r = sendto(cfg->coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
+				}
 			}
 		}
 	}
@@ -180,29 +340,7 @@ static int send_obs_coap_request(struct config *cfg, struct coap_reply *reply, v
 	return r;
 }
 
-
-static int obs_notification_cb(const struct coap_packet *response,
-			       struct coap_reply *reply,
-			       const struct sockaddr *from)
-{
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
-	uint8_t *counter = (uint8_t *)reply->user_data;
-
-	ARG_UNUSED(from);
-
-	printk("\nCoAP OBS Notification\n");
-
-	(*counter)++;
-
-	if (type == COAP_TYPE_CON) {
-		send_obs_reply_ack(id);
-	}
-
-	return 0;
-}
-
-int process_coap_reply(struct config *cfg)
+int process_coap_reply(struct config *cfg, int flags)
 {
 	struct coap_packet reply;
 	uint8_t *data;
@@ -213,14 +351,15 @@ int process_coap_reply(struct config *cfg)
 	if (!data) {
 		return -ENOMEM;
 	}
-
-	rcvd = recv(cfg->coap.sock, data, MAX_COAP_MSG_LEN, MSG_DONTWAIT);
+	LOG_INF("Waiting for Reception");
+	rcvd = recv(cfg->coap.sock, data, MAX_COAP_MSG_LEN, flags);
 	if (rcvd == 0) {
 		ret = -EIO;
 	}
 	else
 	{
 		if (rcvd < 0) {
+			LOG_ERR("Error in Reception: %i", -rcvd);
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				ret = 0;
 			} else {
@@ -234,6 +373,15 @@ int process_coap_reply(struct config *cfg)
 			ret = coap_packet_parse(&reply, data, rcvd, NULL, 0);
 			if (ret < 0) {
 				LOG_ERR("Invalid data received");
+			}else{
+				(void) coap_response_received(&reply, NULL, (struct coap_reply *) &replies, sizeof(replies));
+				uint8_t type = coap_header_get_type(&reply);
+
+				if( type == COAP_TYPE_CON )
+				{
+					send_obs_reply_ack(&reply);
+					
+				}
 			}
 		}
 	}
@@ -242,6 +390,10 @@ int process_coap_reply(struct config *cfg)
 	return ret;
 }
 
+
+//----------------------------------------------------------------
+// Setup, Teardown and runtime functions
+//----------------------------------------------------------------
 
 static int init_coap_proto(struct config *cfg, struct sockaddr *addr,
 			   socklen_t addrlen)
@@ -275,13 +427,7 @@ int start_coap(void)
 	int ret = 0;
 	struct sockaddr_in6 addr6;
 
-	if (IS_ENABLED(CONFIG_NET_IPV6)) {
-		
-		// addr6.sin6_family = AF_INET6;
-		// addr6.sin6_port = htons(COAP_PORT);
-		// inet_pton(AF_INET6, CONFIG_NET_CONFIG_PEER_IPV6_ADDR,
-		// 	  &addr6.sin6_addr);
-		
+	if (IS_ENABLED(CONFIG_NET_IPV6)) {		
 		(void)memset(&addr6, 0, sizeof(addr6));
 		addr6.sin6_family = AF_INET6;
 		addr6.sin6_port = htons(COAP_PORT);
@@ -296,25 +442,92 @@ int start_coap(void)
 	return ret;
 }
 
-int process_coap(void)
+int coap_find_server(void)
 {
 	int ret = 0;
-
-	if (IS_ENABLED(CONFIG_NET_IPV6)) {
-		ret = process_coap_request(&conf.ipv6);
+	echo_received = false;
+	while(ret == 0 && echo_received == false)
+	{
+		ret = coap_send_echo_request(&conf.ipv6);
 		if (ret < 0) {
 			return ret;
 		}
 
-		ret = process_coap_reply(&conf.ipv6);
+		k_sleep(K_MSEC(5000));
+
+		ret = process_coap_reply(&conf.ipv6, MSG_DONTWAIT);
 		if (ret < 0) {
 			return ret;
 		}
 
 	}
+	return ret;
+}
+
+int coap_register_observers(void)
+{
+	int ret = 0;
+
+	ret = coap_send_observer_request(&conf.ipv6, temperature_path, notification_cb_temp);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = process_coap_reply(&conf.ipv6, 0);
+	if (ret < 0) {
+		LOG_ERR("process_coap_replD");
+		return ret;
+	}
+
+	ret = coap_send_observer_request(&conf.ipv6, humidity_path, notification_cb_humidity);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = process_coap_reply(&conf.ipv6, 0);
+	if (ret < 0) {
+		LOG_ERR("process_coap_replD");
+		return ret;
+	}
+
+		ret = coap_send_observer_request(&conf.ipv6, air_quality_path, notification_cb_air_quality);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = process_coap_reply(&conf.ipv6, 0);
+	if (ret < 0) {
+		LOG_ERR("process_coap_replD");
+		return ret;
+	}
+
+	ret = coap_send_observer_request(&conf.ipv6, presence_path, notification_cb_presence);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = process_coap_reply(&conf.ipv6, 0);
+	if (ret < 0) {
+		LOG_ERR("process_coap_replD");
+		return ret;
+	}
 
 	return ret;
 }
+
+int coap_process(void)
+{
+	int ret = 0;
+
+	ret = process_coap_reply(&conf.ipv6, 0);
+	if (ret < 0) {
+		LOG_ERR("process_coap_replD");
+		return ret;
+	}
+
+	return ret;
+}
+
 
 void stop_coap(void)
 {

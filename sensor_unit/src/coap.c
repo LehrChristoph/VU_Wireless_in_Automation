@@ -8,8 +8,7 @@
  */
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_DECLARE(net_echo_server_sample, LOG_LEVEL_DBG);
-
+LOG_MODULE_REGISTER(coap, LOG_LEVEL_INF);
 
 #include <zephyr/zephyr.h>
 #include <errno.h>
@@ -92,7 +91,7 @@ static const char * const air_quality_path[] = {"sensors",  "air_quality", NULL 
 static const char * const air_pressure_path[] = {"sensors",  "air_pressure", NULL };
 static const char * const presence_path[] = {"sensors",  "presence", NULL };
 static const char * const luminance_path[] = {"sensors",  "luminance", NULL };
-
+ 
 static const char * const echo_path[] = { "echo", NULL };
 
 static struct coap_resource resources[] = {
@@ -225,7 +224,6 @@ void start_coap(void)
 
 #if defined(CONFIG_USERSPACE)
 		k_mem_domain_add_thread(&app_domain, coap_thread_id);
-		LOG_DBG("starting Thread");
 #endif
 
 		k_thread_name_set(coap_thread_id, "coap");
@@ -284,7 +282,6 @@ static void coap_server_thread(void)
 		coap_server_process_received_packet(conf.ipv6.coap.recv_buffer, received, &client_addr,
 				     client_addr_len);
 		
-		k_sleep(K_MSEC(5000));
 	}
 }
 
@@ -343,6 +340,7 @@ static void retransmit_request(struct k_work *work)
 	}
 
 	if (!coap_pending_cycle(pending)) {
+		LOG_ERR("Pending Retransmission timed out");
 		remove_observer(&pending->addr);
 		k_free(pending->data);
 		coap_pending_clear(pending);
@@ -373,6 +371,7 @@ static void schedule_next_retransmission(void)
 
 	remaining = pending->t0 + pending->timeout - now;
 	if (remaining < 0) {
+		LOG_ERR("Retransmission timed out");
 		remaining = 0;
 	}
 
@@ -432,8 +431,6 @@ static void coap_server_process_received_packet(uint8_t *data, uint16_t data_len
 	}
 	/* Clear CoAP pending request */
 	else if (type == COAP_TYPE_ACK || type == COAP_TYPE_RESET) {
-		// TODO: Handle received ACK
-		
 		k_free(pending->data);
 		coap_pending_clear(pending);
 
@@ -449,7 +446,7 @@ static int send_coap_reply(struct coap_packet *cpkt,
 {
 	int r;
 
-	net_hexdump("Response", cpkt->data, cpkt->offset);
+	net_hexdump("Reply", cpkt->data, cpkt->offset);
 
 	r = sendto(conf.ipv6.coap.sock, cpkt->data, cpkt->offset, 0, addr, addr_len);
 	if (r < 0) {
@@ -693,6 +690,8 @@ static void temperature_notify(struct coap_resource *resource,
 	get_sensor_data(&sensor_data);
 	sprintf(temp, "%d.%.2i",sensor_data.temp.val1,sensor_data.temp.val2);
 	
+	LOG_INF("Sending Temperature Resource Notification: %s", temp);
+
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
 				 resource->age, 0,
@@ -760,6 +759,8 @@ static void humidity_notify(struct coap_resource *resource,
 	get_sensor_data(&sensor_data);
 	sprintf(humidity, "%d.%.2i",sensor_data.humidity.val1,sensor_data.humidity.val2);
 	
+	LOG_INF("Sending Humidty Resource Notification: %s", humidity);
+
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
 				 resource->age, 0,
@@ -808,11 +809,11 @@ static int  air_quality_get(struct coap_resource *resource,
 	LOG_DBG("type: %u code %u id %u", type, code, id);
 	LOG_DBG("*******");
 
-	char air_quality[20];
+	char air_quality[10];
 	sensor_data_t sensor_data;
 	get_sensor_data(&sensor_data);
-	sprintf(air_quality, "%d.%.2i",sensor_data.gas_res.val1,sensor_data.gas_res.val2);
-	
+	sprintf(air_quality, "%d",sensor_data.air_quality_index);
+
 	return send_notification_packet(addr, addr_len,
 					observe ? resource->age : 0,
 					id, token, tkl, true,
@@ -822,10 +823,12 @@ static int  air_quality_get(struct coap_resource *resource,
 static void  air_quality_notify(struct coap_resource *resource,
 		       struct coap_observer *observer)
 {
-	char air_quality[20];
+	char air_quality[10];
 	sensor_data_t sensor_data;
 	get_sensor_data(&sensor_data);
-	sprintf(air_quality, "%d.%.2i",sensor_data.gas_res.val1,sensor_data.gas_res.val2);
+	sprintf(air_quality, "%d",sensor_data.air_quality_index);
+
+	LOG_INF("Sending Air Quality Resource Notification: %s", air_quality);
 	
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
@@ -893,6 +896,8 @@ static void air_pressure_notify(struct coap_resource *resource,
 	sensor_data_t sensor_data;
 	get_sensor_data(&sensor_data);
 	sprintf(air_pressure, "%d.%.2i",sensor_data.press.val1,sensor_data.press.val2);
+
+	LOG_INF("Sending Air Pressure Resource Notification: %s", air_pressure);
 	
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
@@ -960,6 +965,8 @@ static void presence_notify(struct coap_resource *resource,
 	sensor_data_t sensor_data;
 	get_sensor_data(&sensor_data);
 	sprintf(presence, "%d",sensor_data.presence);
+
+	LOG_INF("Sending Presence Resource Notification: %s", presence);
 	
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
@@ -1029,6 +1036,8 @@ static void luminance_notify(struct coap_resource *resource,
 	sensor_data_t sensor_data;
 	get_sensor_data(&sensor_data);
 	sprintf(luminance, "%d",sensor_data.luminance);
+
+	LOG_INF("Sending Luminance Resource Notification: %s", luminance);
 	
 	send_notification_packet(&observer->addr,
 				 sizeof(observer->addr),
@@ -1036,4 +1045,15 @@ static void luminance_notify(struct coap_resource *resource,
 				 observer->token, observer->tkl, false,
 				 &luminance, strlen(luminance));
 
+}
+
+
+void coap_resource_update(int resource_id)
+{
+	if(resource_id > LAST_ID_RESOURCE_ID)
+	{
+		return;
+	}
+
+	coap_resource_notify(&resources[resource_id]);
 }
