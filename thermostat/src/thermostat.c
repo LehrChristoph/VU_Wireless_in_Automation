@@ -55,7 +55,7 @@ int buffer_len = sizeof(packet_buffer) - 1;
 APP_DMEM struct configs conf = {
 	.ipv6 = {
 		.proto = "IPv6",
-		.udp.sock = INVALID_SOCK,
+		.coap.sock = INVALID_SOCK,
 	},
 };
 
@@ -83,25 +83,71 @@ static int start_udp_and_tcp(void)
 	LOG_INF("Starting...");
 
 	if (IS_ENABLED(CONFIG_NET_UDP)) {
-		ret = start_udp();
+		ret = start_coap();
 		if (ret < 0) {
 			return ret;
 		}
 	}
 
-	if (conf.ipv6.udp.sock >= 0) {
-		fd.fd = conf.ipv6.udp.sock;
+	if (conf.ipv6.coap.sock >= 0) {
+		fd.fd = conf.ipv6.coap.sock;
 		fd.events = POLLIN;
 	}
 
 	return 0;
 }
 
+
+static bool join_coap_multicast_group(void)
+{
+	static struct in6_addr my_addr = MY_IP6ADDR;
+	static struct sockaddr_in6 mcast_addr = {
+		.sin6_family = AF_INET6,
+		.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
+		.sin6_port = htons(COAP_PORT) };
+	struct net_if_addr *ifaddr;
+	struct net_if *iface;
+	int ret;
+
+	iface = net_if_get_default();
+	if (!iface) {
+		LOG_ERR("Could not get te default interface\n");
+		return false;
+	}
+
+#if defined(CONFIG_NET_CONFIG_SETTINGS)
+	if (net_addr_pton(AF_INET6,
+			  CONFIG_NET_CONFIG_MY_IPV6_ADDR,
+			  &my_addr) < 0) {
+		LOG_ERR("Invalid IPv6 address %s",
+			CONFIG_NET_CONFIG_MY_IPV6_ADDR);
+	}
+#endif
+
+	ifaddr = net_if_ipv6_addr_add(iface, &my_addr, NET_ADDR_MANUAL, 0);
+	if (!ifaddr) {
+		LOG_ERR("Could not add unicast address to interface");
+		return false;
+	}
+
+	ifaddr->addr_state = NET_ADDR_PREFERRED;
+
+	struct net_if_mcast_addr *if_mcast_addr =	net_if_ipv6_maddr_add (iface, &mcast_addr.sin6_addr);
+	
+	if (if_mcast_addr == NULL) {
+		LOG_ERR("Cannot join IPv6 multicast group");
+		return false;
+	}
+	net_if_ipv6_maddr_join(if_mcast_addr);
+	
+	return true;
+}
+
 int send_sensor_values(void)
 {
 	int ret;
 
-	wait();
+	//wait();
 	/*	
 	int lux_value = get_lux_value(0);
 	int pir_value = get_pir_value(0);
@@ -129,7 +175,7 @@ int send_sensor_values(void)
 	//	ret = process_udp();
 	*/
 	sprintf((char*)&packet_buffer, "Hello World\n");
-	ret = process_udp();
+	ret = process_coap();
 		if (ret < 0) {
 			return ret;
 		}
@@ -143,7 +189,7 @@ static void stop_udp_and_tcp(void)
 	LOG_INF("Stopping...");
 
 	if (IS_ENABLED(CONFIG_NET_UDP)) {
-		stop_udp();
+		stop_coap();
 	}
 }
 
@@ -158,7 +204,7 @@ static void event_handler(struct net_mgmt_event_callback *cb,
 		LOG_INF("Network connected");
 
 		connected = true;
-		conf.ipv6.udp.mtu = net_if_get_mtu(iface);
+		conf.ipv6.coap.mtu = net_if_get_mtu(iface);
 		k_sem_give(&run_app);
 
 		return;
@@ -209,18 +255,18 @@ static int start_client(void)
 		k_sem_take(&run_app, K_FOREVER);
 
 		ret = start_udp_and_tcp();
-
+		/*
 		if(ret == 0)
 		{
 			do
 			{
-				/* code */
 				ret =	pir_init();
 
 				k_sleep(K_MSEC(1000));
 			} while (ret != 0);
 		
 		}
+		*/
 
 		while (connected && (ret == 0)) {
 			ret = send_sensor_values();
@@ -244,6 +290,9 @@ void main(void)
 		 */
 		k_sem_give(&run_app);
 	}
+
+	join_coap_multicast_group();
+
 
 	k_thread_priority_set(k_current_get(), THREAD_PRIORITY);
 

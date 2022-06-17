@@ -5,10 +5,10 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(sockets_echo_server)
 
-target_sources(                     app PRIVATE src/echo-server.c)
-target_sources(                     app PRIVATE src/adc.c)
-target_sources(                     app PRIVATE src/pir.c)
-target_sources(                     app PRIVATE src/bme680.c)
-target_sources_ifdef(CONFIG_NET_UDP app PRIVATE src/udp.c)
+target_sources( app PRIVATE src/main.c)
+target_sources( app PRIVATE src/sensors.c)
+target_sources( app PRIVATE src/coap.c)
 include(${ZEPHYR_BASE}/samples/net/common/common.cmake)
 
+
+target_include_directories(app PRIVATE ${ZEPHYR_BASE}/subsys/net/ip)

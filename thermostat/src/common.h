@@ -7,11 +7,11 @@
 
 /* Value of 0 will cause the IP stack to select next free port */
 #define MY_PORT 0
+#define STACK_SIZE 2048
 
-#define PEER_PORT 5683
+#define COAP_PORT 5683
+#define MAX_COAP_MSG_LEN 256
 //4242
-
-#include <zephyr/drivers/sensor.h>
 
 #if defined(CONFIG_USERSPACE)
 #include <zephyr/app_memory/app_memdomain.h>
@@ -30,31 +30,28 @@ extern struct k_mem_domain app_domain;
 #define THREAD_PRIORITY K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1)
 #endif
 
-struct data {
+
+struct config {
 	const char *proto;
 
 	struct {
 		int sock;
-		/* Work controlling udp data sending */
+		/* Work controlling coap data sending */
+		char recv_buffer[MAX_COAP_MSG_LEN];
 		struct k_work_delayable recv;
 		struct k_work_delayable transmit;
 		uint32_t expecting;
 		uint32_t counter;
 		uint32_t mtu;
-	} udp;
+	} coap;
 };
 
 struct configs {
-	struct data ipv6;
+	struct config ipv6;
 };
 
-typedef struct 
-{
-	struct sensor_value temp;
-	struct sensor_value press;
-	struct sensor_value humidity;
-	struct sensor_value gas_res;
-} bme680_sensor_data_t;
+#define ALL_NODES_LOCAL_COAP_MCAST { { { 0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfd } } }
+#define MY_IP6ADDR { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x2 } } }
 
 
 #if !defined(CONFIG_NET_CONFIG_PEER_IPV4_ADDR)
@@ -71,8 +68,6 @@ extern struct configs conf;
 
 int send_sensor_values(void);
 
-int start_udp(void);
-int process_udp(void);
-void stop_udp(void);
-
-void bme680_get_sensor_data(bme680_sensor_data_t *sensor_data);
+int start_coap(void);
+int process_coap(void);
+void stop_coap(void);

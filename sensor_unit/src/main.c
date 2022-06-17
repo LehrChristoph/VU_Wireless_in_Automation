@@ -22,9 +22,20 @@ LOG_MODULE_REGISTER(net_echo_server_sample, LOG_LEVEL_DBG);
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_conn_mgr.h>
 
+#include <zephyr/net/socket.h>
+#include <zephyr/net/net_mgmt.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/udp.h>
+#include <zephyr/net/coap.h>
+#include <zephyr/net/coap_link_format.h>
+
+
 #include "common.h"
+#include "net_private.h"
+#include "ipv6.h"
 
 #define APP_BANNER "Run echo server"
+
 
 static struct k_sem quit_lock;
 static struct net_mgmt_event_callback mgmt_cb;
@@ -50,6 +61,16 @@ void quit(void)
 {
 	k_sem_give(&quit_lock);
 }
+
+
+/*
+static sensor_data_t gathered_sensor_data;
+
+void get_sensor_data(sensor_data_t *sensor_data)
+{
+	*sensor_data = gathered_sensor_data;
+}
+*/
 
 static void event_handler(struct net_mgmt_event_callback *cb,
 			  uint32_t mgmt_event, struct net_if *iface)
@@ -148,22 +169,22 @@ void main(void)
 		 */
 		k_sem_give(&run_app);
 	}
-
+	
+	sensors_init();
+	
 	/* Wait for the connection. */
 	k_sem_take(&run_app, K_FOREVER);
 
 	LOG_INF("Starting...");
 
-	if (IS_ENABLED(CONFIG_NET_UDP)) {
-		start_udp();
-	}
-
+	start_coap();
+	
 	k_sem_take(&quit_lock, K_FOREVER);
 
 	if (connected) {
 		LOG_INF("Stopping...");
 		if (IS_ENABLED(CONFIG_NET_UDP)) {
-			stop_udp();
+			stop_coap();
 		}
 	}
 }
