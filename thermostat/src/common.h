@@ -66,7 +66,8 @@ extern char packet_buffer[];
 extern int buffer_len;
 extern struct configs conf;
 
-int send_sensor_values(void);
+
+void init_display(void);
 
 int start_coap(void);
 int coap_find_server(void);
@@ -79,3 +80,7 @@ void hvac_update_temperatur(double temp);
 void hvac_update_humidity(double hum);
 void hvac_update_air_quality(int air_qual);
 void hvac_update_pressence(int presence);
+
+void display_update_temperatur(double temp);
+void display_update_humidity(double hum);
+void display_update_air_quality(int air_qual);
