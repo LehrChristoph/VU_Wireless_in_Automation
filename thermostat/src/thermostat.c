@@ -59,8 +59,6 @@ APP_DMEM struct configs conf = {
 	},
 };
 
-static APP_BMEM struct pollfd fd;
-
 static APP_BMEM bool connected;
 K_SEM_DEFINE(run_app, 0, 1);
 
@@ -75,7 +73,6 @@ static bool join_coap_multicast_group(void)
 		.sin6_port = htons(COAP_PORT) };
 	struct net_if_addr *ifaddr;
 	struct net_if *iface;
-	int ret;
 
 	iface = net_if_get_default();
 	if (!iface) {
@@ -165,8 +162,6 @@ static void init_app(void)
 
 static int start_client(void)
 {
-	int iterations = 1;
-	int i = 0;
 	int ret;
 
 	/* Wait for the connection. */
@@ -212,7 +207,7 @@ void main(void)
 	join_coap_multicast_group();
 
 	hvac_init(24.0, 28.0, 25.0, 27.0, 75.0, 100);
-
+	init_display();
 	//k_thread_priority_set(k_current_get(), THREAD_PRIORITY);
 
 #if defined(CONFIG_USERSPACE)

@@ -26,7 +26,7 @@ LOG_MODULE_REGISTER(coap, LOG_LEVEL_INF);
 #include <zephyr/random/rand32.h>
 
 #include "common.h"
-#include "net_private.h"y
+#include "net_private.h"
 
 #define UDP_SLEEP K_MSEC(150)
 #define UDP_WAIT K_SECONDS(10)
@@ -36,9 +36,11 @@ static const char * const echo_path[] = { "echo", NULL };
 static const char * const temperature_path[] = {"sensors", "temperature", NULL };
 static const char * const humidity_path[] = {"sensors",  "humidity", NULL };
 static const char * const air_quality_path[] = {"sensors",  "air_quality", NULL };
-static const char * const air_pressure_path[] = {"sensors",  "air_pressure", NULL };
 static const char * const presence_path[] = {"sensors",  "presence", NULL };
-static const char * const luminance_path[] = {"sensors",  "luminance", NULL };
+
+// currently not used
+// static const char * const air_pressure_path[] = {"sensors",  "air_pressure", NULL };
+// static const char * const luminance_path[] = {"sensors",  "luminance", NULL };
 
 static bool echo_received;
 static struct coap_reply replies[NUM_REPLIES];
@@ -101,9 +103,6 @@ static int echo_request_cb(const struct coap_packet *response,
 	
 	echo_received = true;
 	coap_reply_clear(reply);
-
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
 	
 	return 0;
 }
@@ -112,8 +111,6 @@ static int notification_cb_temp(const struct coap_packet *response,
 			       struct coap_reply *reply,
 			       const struct sockaddr *from)
 {
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
 	const uint8_t *payload;
 	uint16_t payload_len;
 
@@ -126,6 +123,7 @@ static int notification_cb_temp(const struct coap_packet *response,
 		double result = atof(payload);
 		LOG_DBG("Tempereature %lf", result);
 		hvac_update_temperatur(result);
+		display_update_temperatur(result);
 	}
 
 	return 0;
@@ -135,8 +133,6 @@ static int notification_cb_humidity(const struct coap_packet *response,
 			       struct coap_reply *reply,
 			       const struct sockaddr *from)
 {
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
 	const uint8_t *payload;
 	uint16_t payload_len;
 
@@ -149,6 +145,7 @@ static int notification_cb_humidity(const struct coap_packet *response,
 		double result = atof(payload);
 		LOG_DBG("Humidity %lf", result);
 		hvac_update_humidity(result);
+		display_update_humidity(result);
 	}
 
 	return 0;
@@ -158,8 +155,6 @@ static int notification_cb_air_quality(const struct coap_packet *response,
 			       struct coap_reply *reply,
 			       const struct sockaddr *from)
 {
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
 	const uint8_t *payload;
 	uint16_t payload_len;
 
@@ -172,6 +167,7 @@ static int notification_cb_air_quality(const struct coap_packet *response,
 		double result = atof(payload);
 		LOG_DBG("Air Quality %lf", result);
 		hvac_update_air_quality(result);
+		display_update_air_quality(result);
 	}
 	
 	return 0;
@@ -181,8 +177,6 @@ static int notification_cb_presence(const struct coap_packet *response,
 			       struct coap_reply *reply,
 			       const struct sockaddr *from)
 {
-	uint16_t id = coap_header_get_id(response);
-	uint8_t type = coap_header_get_type(response);
 	const uint8_t *payload;
 	uint16_t payload_len;
 
