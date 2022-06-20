@@ -160,14 +160,14 @@ static void query_sensor_data(void)
 		if (ret != 0) {
 			LOG_ERR("Error %d: failed to disable interrupt on %s pin %d\n",
 				ret, pir_sensor.port->name, pir_sensor.pin);
-			return ret;
+			return;
 		}
 
 		gathered_sensor_data[current_id].luminance = get_luminance_value(0);
 		gathered_sensor_data[current_id].presence =  get_pir_value();
 		bme680_get_sensor_data(&gathered_sensor_data[current_id]);
 		
-		LOG_DBG("lux:%i;pir:%i;T:%d.%06d;P:%d.%06d;H:%d.%06d;G:%d\n",
+		LOG_DBG("lux:%i;pir:%i;T:%d.%06d;P:%d.%06d;H:%d.%06d;AQI:%d\n",
 				gathered_sensor_data[current_id].luminance, gathered_sensor_data[current_id].presence,
 				gathered_sensor_data[current_id].temp.val1, gathered_sensor_data[current_id].temp.val2, 
 				gathered_sensor_data[current_id].press.val1, gathered_sensor_data[current_id].press.val2,
@@ -179,7 +179,7 @@ static void query_sensor_data(void)
 		if (ret != 0) {
 			LOG_ERR("Error %d: failed to enable interrupt on %s pin %d\n",
 				ret, pir_sensor.port->name, pir_sensor.pin);
-			return ret;
+			return;
 		}
 
 		notify_observers();
@@ -387,8 +387,6 @@ int get_luminance_value(uint8_t channel)
 	adc_channel_setup(dev_adc, &channel_cfg);
 
 	sequence.channels |= BIT(channel_ids[channel]);
-
-	int32_t adc_vref = adc_ref_internal(dev_adc);
 
 	/*
 		* Read sequence of channels (fails if not supported by MCU)

@@ -486,49 +486,42 @@ static int send_notification_packet(const struct sockaddr *addr,
 	r = coap_packet_init(&response, data, MAX_COAP_MSG_LEN,
 			     COAP_VERSION_1, type, tkl, token,
 			     COAP_RESPONSE_CODE_CONTENT, id);
-	if (r < 0) {
-		goto end;
-	}
-
-	if (age >= 2U) {
+	
+	if (r == 0 && age >= 2U) {
 		r = coap_append_option_int(&response, COAP_OPTION_OBSERVE, age);
-		if (r < 0) {
-			goto end;
-		}
 	}
 
-	r = coap_append_option_int(&response, COAP_OPTION_CONTENT_FORMAT,
-				   COAP_CONTENT_FORMAT_TEXT_PLAIN);
-	if (r < 0) {
-		goto end;
+	if(r == 0)
+	{	
+		r = coap_append_option_int(&response, COAP_OPTION_CONTENT_FORMAT,
+					COAP_CONTENT_FORMAT_TEXT_PLAIN);
 	}
 
-	r = coap_packet_append_payload_marker(&response);
-	if (r < 0) {
-		goto end;
+	if(r == 0)
+	{
+		r = coap_packet_append_payload_marker(&response);
 	}
 
-	r = coap_packet_append_payload(&response, (uint8_t *)payload, 
+	if(r == 0)
+	{
+		r = coap_packet_append_payload(&response, (uint8_t *)payload, 
 				       payload_length);
-	if (r < 0) {
-		goto end;
 	}
 
-	if (type == COAP_TYPE_CON) {
+	if (r == 0 && type == COAP_TYPE_CON) {
 		r = create_pending_request(&response, addr);
-		if (r < 0) {
-			goto end;
+	}
+
+	if(r == 0)
+	{
+		r = send_coap_reply(&response, addr, addr_len);
+
+		/* On successful creation of pending request, do not free memory */
+		if (type == COAP_TYPE_CON) {
+			return r;
 		}
 	}
-
-	r = send_coap_reply(&response, addr, addr_len);
-
-	/* On successful creation of pending request, do not free memory */
-	if (type == COAP_TYPE_CON) {
-		return r;
-	}
-
-end:
+	
 	k_free(data);
 
 	return r;
@@ -553,13 +546,10 @@ static int well_known_core_get(struct coap_resource *resource,
 
 	r = coap_well_known_core_get(resource, request, &response,
 				     data, MAX_COAP_MSG_LEN);
-	if (r < 0) {
-		goto end;
+	if (r == 0) {
+		r = send_coap_reply(&response, addr, addr_len);
 	}
 
-	r = send_coap_reply(&response, addr, addr_len);
-
-end:
 	k_free(data);
 
 	return r;
@@ -608,23 +598,19 @@ static int echo_put(struct coap_resource *resource,
 	r = coap_packet_init(&response, data, MAX_COAP_MSG_LEN,
 			     COAP_VERSION_1, type, tkl, token,
 			     COAP_RESPONSE_CODE_CHANGED, id);
-	if (r < 0) {
-		goto end;
+	if (r == 0) {
+
+		r = coap_packet_append_payload_marker(&response);
+		if (r == 0) {
+			r = coap_packet_append_payload(&response, payload, payload_len);
+			if (r == 0) {
+				r = send_coap_reply(&response, addr, addr_len);
+			}
+
+		}
+
 	}
 
-	r = coap_packet_append_payload_marker(&response);
-	if (r < 0) {
-		goto end;
-	}
-
-	r = coap_packet_append_payload(&response, payload, payload_len);
-	if (r < 0) {
-		goto end;
-	}
-
-	r = send_coap_reply(&response, addr, addr_len);
-
-end:
 	k_free(data);
 
 	return r;

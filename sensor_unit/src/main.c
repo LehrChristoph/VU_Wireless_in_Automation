@@ -34,7 +34,7 @@ LOG_MODULE_REGISTER(sensor_unit, LOG_LEVEL_INF);
 #include "net_private.h"
 #include "ipv6.h"
 
-#define APP_BANNER "Run echo server"
+#define APP_BANNER "sensor unit"
 
 
 static struct k_sem quit_lock;

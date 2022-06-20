@@ -47,18 +47,6 @@ static struct coap_reply replies[NUM_REPLIES];
 static int reply_acks[NUM_REPLIES];
 static int reply_acks_wr_ptr;
 
-static void wait_reply(struct k_work *work)
-{
-	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
-	/* This means that we did not receive response in time. */
-	struct config *data = CONTAINER_OF(dwork, struct config, coap.recv);
-
-	LOG_ERR("UDP %s: Data packet not received", data->proto);
-
-	/* Send a new packet at this point */
-	//send_udp_data(data);
-}
-
 //----------------------------------------------------------------
 // Reply Callbacks
 //----------------------------------------------------------------
@@ -77,22 +65,24 @@ static void send_obs_reply_ack(struct coap_packet *reply)
 	r = coap_ack_init(&request, reply, data, MAX_COAP_MSG_LEN, COAP_CODE_EMPTY);
 	if (r < 0) {
 		LOG_ERR("Failed to init CoAP message");
-		goto end;
+	}
+	else
+	{
+
+		net_hexdump("ACK", request.data, request.offset);
+
+		static struct sockaddr_in6 mcast_addr = {
+							.sin6_family = AF_INET6,
+							.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
+							.sin6_port = htons(COAP_PORT) };
+
+		r = sendto(conf.ipv6.coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
+
+		if (r < 0) {
+			LOG_ERR("Failed to send CoAP ACK: %i", -r);
+		}
 	}
 
-	net_hexdump("ACK", request.data, request.offset);
-
-	static struct sockaddr_in6 mcast_addr = {
-						.sin6_family = AF_INET6,
-						.sin6_addr = ALL_NODES_LOCAL_COAP_MCAST,
-						.sin6_port = htons(COAP_PORT) };
-
-	r = sendto(conf.ipv6.coap.sock, request.data, request.offset, 0, (struct sockaddr *) &mcast_addr, sizeof(mcast_addr));
-
-	if (r < 0) {
-		LOG_ERR("Failed to send CoAP ACK: %i", -r);
-	}
-end:
 	k_free(data);
 }
 
@@ -353,10 +343,10 @@ int process_coap_reply(struct config *cfg, int flags)
 	else
 	{
 		if (rcvd < 0) {
-			LOG_ERR("Error in Reception: %i", -rcvd);
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
 				ret = 0;
 			} else {
+				LOG_ERR("Error in Reception: %i", -rcvd);
 				ret = -errno;
 			}
 		}
@@ -393,8 +383,6 @@ static int init_coap_proto(struct config *cfg, struct sockaddr *addr,
 			   socklen_t addrlen)
 {
 	int ret;
-
-	k_work_init_delayable(&cfg->coap.recv, wait_reply);
 
 	cfg->coap.sock = socket(addr->sa_family, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -525,12 +513,7 @@ int coap_process(void)
 
 void stop_coap(void)
 {
-	if (IS_ENABLED(CONFIG_NET_IPV6)) {
-		k_work_cancel_delayable(&conf.ipv6.coap.recv);
-		k_work_cancel_delayable(&conf.ipv6.coap.transmit);
-
-		if (conf.ipv6.coap.sock >= 0) {
-			(void)close(conf.ipv6.coap.sock);
-		}
+	if (conf.ipv6.coap.sock >= 0) {
+		(void)close(conf.ipv6.coap.sock);
 	}
 }
