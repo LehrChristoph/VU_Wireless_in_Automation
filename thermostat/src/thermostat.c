@@ -32,6 +32,31 @@ LOG_MODULE_REGISTER(thermostat, LOG_LEVEL_INF);
 #include <zephyr/net/net_event.h>
 #include <zephyr/net/net_conn_mgr.h>
 
+
+#ifndef TEMP_MIN
+	#define TEMP_MIN 24.0
+#endif
+
+#ifndef TEMP_MAX
+	#define TEMP_MAX 28.0
+#endif
+
+#ifndef TEMP_MIN_PRESENCE
+	#define TEMP_MIN_PRESENCE 25.0
+#endif
+
+#ifndef TEMP_MAX_PRESENCE
+	#define TEMP_MAX_PRESENCE 27.0
+#endif
+
+#ifndef HUMIDITY_MAX
+	#define HUMIDITY_MAX 75.0
+#endif
+
+#ifndef AIQ_MAX
+	#define AIQ_MAX 100
+#endif
+
 #if defined(CONFIG_USERSPACE)
 #include <zephyr/app_memory/app_memdomain.h>
 K_APPMEM_PARTITION_DEFINE(app_partition);
@@ -206,9 +231,8 @@ void main(void)
 
 	join_coap_multicast_group();
 
-	hvac_init(24.0, 28.0, 25.0, 27.0, 75.0, 100);
+	hvac_init(TEMP_MIN, TEMP_MAX, TEMP_MIN_PRESENCE, TEMP_MAX_PRESENCE, HUMIDITY_MAX, AIQ_MAX);
 	init_display();
-	//k_thread_priority_set(k_current_get(), THREAD_PRIORITY);
 
 #if defined(CONFIG_USERSPACE)
 	k_thread_access_grant(k_current_get(), &run_app);

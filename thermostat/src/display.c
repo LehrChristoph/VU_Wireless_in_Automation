@@ -50,7 +50,7 @@ void init_display(void)
 		text_label = lv_label_create(lv_scr_act());
 	}
 
-	lv_label_set_text(text_label, "Thermostat\nT:\nH:\nAIQ:");
+	lv_label_set_text(text_label, "Thermostat\nT:\nH:\nAQI:");
 	lv_obj_align(text_label, LV_ALIGN_TOP_LEFT, 0, 0);
 
 	lv_task_handler();
