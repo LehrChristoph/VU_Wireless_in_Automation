@@ -252,8 +252,6 @@ void get_sensor_data(sensor_data_t *sensor_data)
 }
 
 
-
-
 void pir_changed(const struct device *dev, struct gpio_callback *cb,
 		    uint32_t pins)
 {
