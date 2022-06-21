@@ -453,9 +453,7 @@ int coap_find_server(void)
 int coap_register_observers(void)
 {
 	int ret = 0;
-	// clear replies from echo requests
-	coap_replies_clear( (struct coap_reply *) &replies, sizeof(replies));
-
+	
 	ret = coap_send_observer_request(&conf.ipv6, temperature_path, notification_cb_temp);
 	if (ret < 0) {
 		return ret;
