@@ -346,9 +346,6 @@ void bme680_get_sensor_data(sensor_data_t *sensor_data)
 		return;
 	}
 
-	// Using gas sensor resistance conversion found here
-	//https://forums.pimoroni.com/t/bme680-observed-gas-ohms-readings/6608/17
-	
 	struct sensor_value gas_res;
 	ret = sensor_channel_get(dev, SENSOR_CHAN_GAS_RES, &gas_res);
 	if(ret != 0)
@@ -358,6 +355,9 @@ void bme680_get_sensor_data(sensor_data_t *sensor_data)
 		return;
 	}
 	double gas_res_2 = sensor_value_to_double(&gas_res);
+	// Using gas sensor resistance conversion found here
+	//https://forums.pimoroni.com/t/bme680-observed-gas-ohms-readings/6608/17
+	// C converts double to int automatically, decimal values not relevant for AQI
 	sensor_data->air_quality_index = log(gas_res_2) + 0.4 * sensor_value_to_double(&sensor_data->humidity);
 }
 
@@ -401,7 +401,10 @@ int get_luminance_value(uint8_t channel)
 	int32_t luminance_value = raw_value;
 
 	LOG_DBG("ADC reading: %d", raw_value);
-
+	
+	// maximum value of luminance sensor is 350 lux
+	// ADC has 12 bit resolution, approximate value
+	// with ADC-value*350/4096
 	luminance_value = raw_value * 350;
 	luminance_value >>=12;	    
 	

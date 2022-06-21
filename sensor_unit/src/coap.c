@@ -575,9 +575,9 @@ static int echo_put(struct coap_resource *resource,
 	id = coap_header_get_id(request);
 	tkl = coap_header_get_token(request, token);
 
-	LOG_INF("*******");
-	LOG_INF("type: %u code %u id %u", type, code, id);
-	LOG_INF("*******");
+	LOG_DBG("*******");
+	LOG_DBG("type: %u code %u id %u", type, code, id);
+	LOG_DBG("*******");
 
 	payload = coap_packet_get_payload(request, &payload_len);
 	if (payload) {

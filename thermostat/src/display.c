@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_DBG);
 
 void display_thread(void);
 
-// Thread definitions to query the sensor data
+// Thread definitions to constantly update the display
 K_THREAD_DEFINE(display_thread_id, STACK_SIZE,
 		display_thread, NULL, NULL, NULL,
 		THREAD_PRIORITY,
@@ -50,6 +50,7 @@ void init_display(void)
 		text_label = lv_label_create(lv_scr_act());
 	}
 
+	// Create Label on the left side with the text
 	lv_label_set_text(text_label, "Thermostat\nT:\nH:\nAQI:");
 	lv_obj_align(text_label, LV_ALIGN_TOP_LEFT, 0, 0);
 
@@ -72,14 +73,12 @@ void display_thread(void)
     char data_str[50] = {0};
 
     struct sensor_value temp, hum;
-
+	// Create label on the right side for the sensor data
 	lv_obj_t *data_label = lv_label_create(lv_scr_act());
 	lv_obj_align(data_label, LV_ALIGN_TOP_RIGHT, 0, 0);
     
-
-
     while (1) {
-        
+        // convert data to sensor value as a sprintf with a float or a double cuases a buffer overflwo
         sensor_value_from_double(&temp, temperature);
         sensor_value_from_double(&hum, humidty);
         

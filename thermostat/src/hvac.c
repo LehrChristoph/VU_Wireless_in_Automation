@@ -69,7 +69,7 @@ static double humidity;
 static int air_quality;
 
 
-// Thread definitions to query the sensor data
+// Thread definitions to update the outputs an mimic a HVAC
 K_THREAD_DEFINE(hvac_thread_id, STACK_SIZE,
 		hvac_thread, NULL, NULL, NULL,
 		THREAD_PRIORITY,

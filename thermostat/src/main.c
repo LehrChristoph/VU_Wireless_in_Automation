@@ -84,6 +84,7 @@ K_SEM_DEFINE(run_app, 0, 1);
 
 static struct net_mgmt_event_callback mgmt_cb;
 
+// Join CoAP Multicast group
 static bool join_coap_multicast_group(void)
 {
 	static struct in6_addr my_addr = MY_IP6ADDR;
@@ -184,7 +185,7 @@ static int start_client(void)
 {
 	int ret;
 
-	/* Wait for the connection. */
+	// Wait for the connection. 
 	k_sem_take(&run_app, K_FOREVER);
 
 	LOG_INF("Starting...");

@@ -48,7 +48,7 @@ static int reply_acks[NUM_REPLIES];
 static int reply_acks_wr_ptr;
 
 //----------------------------------------------------------------
-// Reply Callbacks
+// Notification/Reply Callbacks
 //----------------------------------------------------------------
 
 static void send_obs_reply_ack(struct coap_packet *reply)
@@ -105,7 +105,7 @@ static int notification_cb_temp(const struct coap_packet *response,
 	uint16_t payload_len;
 
 	payload = coap_packet_get_payload(response, &payload_len);
-	if (payload == 0) {
+	if (payload == NULL) {
 		LOG_ERR("NO PAYLOAD RECEIVED");
 	}
 	else
@@ -127,7 +127,7 @@ static int notification_cb_humidity(const struct coap_packet *response,
 	uint16_t payload_len;
 
 	payload = coap_packet_get_payload(response, &payload_len);
-	if (payload == 0) {
+	if (payload == NULL) {
 		LOG_ERR("NO PAYLOAD RECEIVED");
 	}
 	else
@@ -149,7 +149,7 @@ static int notification_cb_air_quality(const struct coap_packet *response,
 	uint16_t payload_len;
 
 	payload = coap_packet_get_payload(response, &payload_len);
-	if (payload == 0) {
+	if (payload == NULL) {
 		LOG_ERR("NO PAYLOAD RECEIVED");
 	}
 	else
@@ -171,11 +171,12 @@ static int notification_cb_presence(const struct coap_packet *response,
 	uint16_t payload_len;
 
 	payload = coap_packet_get_payload(response, &payload_len);
-	if (payload == 0) {
+	if (payload == NULL) {
 		LOG_ERR("NO PAYLOAD RECEIVED");
 	}
 	else
 	{
+		// simple conversion between char and int
 		int result = payload[0] == '0' ? 0 :1;
 		LOG_DBG("Presence %i", result);
 		hvac_update_pressence(result);
@@ -210,6 +211,7 @@ static int coap_send_echo_request(struct config *cfg)
 	}
 	else
 	{
+		// Iterate over path
 		for (p = echo_path; p && *p; p++) {
 			r = coap_packet_append_option(&request, COAP_OPTION_URI_PATH,
 							*p, strlen(*p));
@@ -287,6 +289,7 @@ static int coap_send_observer_request(struct config *cfg, const char * const pat
 		}
 		else
 		{
+			// iterate over path and add to request
 			for (p = path; p && *p; p++) {
 				r = coap_packet_append_option(&request, COAP_OPTION_URI_PATH,
 								*p, strlen(*p));
@@ -301,6 +304,7 @@ static int coap_send_observer_request(struct config *cfg, const char * const pat
 				{
 					net_hexdump("Request", request.data, request.offset);
 
+					// Register a handler for the CoAP replies and notifications
 					struct coap_reply *reply =coap_reply_next_unused((struct coap_reply *)&replies, sizeof(replies));
 					coap_reply_init(reply, &request);
 					reply->reply = reply_cb;
@@ -392,7 +396,7 @@ static int init_coap_proto(struct config *cfg, struct sockaddr *addr,
 		return -errno;
 	}
 
-	/* Call connect so we can use send and recv. */
+	// Call bind instead of connect in order to setup a coap server in the future
 	ret = bind(cfg->coap.sock, addr, addrlen);
 	if (ret < 0) {
 		LOG_ERR("Cannot connect to UDP remote (%s): %d", cfg->proto,
@@ -449,6 +453,8 @@ int coap_find_server(void)
 int coap_register_observers(void)
 {
 	int ret = 0;
+	// clear replies from echo requests
+	coap_replies_clear( (struct coap_reply *) &replies, sizeof(replies));
 
 	ret = coap_send_observer_request(&conf.ipv6, temperature_path, notification_cb_temp);
 	if (ret < 0) {
@@ -472,7 +478,7 @@ int coap_register_observers(void)
 		return ret;
 	}
 
-		ret = coap_send_observer_request(&conf.ipv6, air_quality_path, notification_cb_air_quality);
+	ret = coap_send_observer_request(&conf.ipv6, air_quality_path, notification_cb_air_quality);
 	if (ret < 0) {
 		return ret;
 	}
